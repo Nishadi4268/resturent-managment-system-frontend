@@ -90,14 +90,26 @@ const Login = () => {
         setIsSubmitted(true);
         setForm(initialForm);
 
-        // Store token if needed
+        // Store token and user data
         if (data.token) {
           localStorage.setItem("token", data.token);
         }
 
-        // Redirect to /dashboard
+        // Store user data including role
+        if (data.user) {
+          localStorage.setItem("user", JSON.stringify(data.user));
+        }
+
+        // Redirect based on role
         setTimeout(() => {
-          navigate("/dashboard");
+          const userRole = data.user?.role;
+          if (userRole === "staff") {
+            navigate("/dashboard/staff");
+          } else if (userRole === "owner") {
+            navigate("/dashboard/owner");
+          } else {
+            navigate("/dashboard");
+          }
         }, 2000);
       } catch (error: any) {
         setApiError(error.message || "An error occurred during login");
