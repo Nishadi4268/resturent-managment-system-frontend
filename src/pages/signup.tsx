@@ -1,11 +1,12 @@
 import { FormEvent, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import login from "../assets/images/login.png";
 
 type FormData = {
   fullName: string;
   email: string;
+  employeeId: string;
   password: string;
   confirmPassword: string;
   acceptTerms: boolean;
@@ -16,17 +17,22 @@ type FormErrors = Partial<Record<keyof FormData, string>>;
 const initialForm: FormData = {
   fullName: "",
   email: "",
+  employeeId: "",
   password: "",
   confirmPassword: "",
   acceptTerms: false
 };
 
 const Signup = () => {
+  const navigate = useNavigate();
   const [form, setForm] = useState<FormData>(initialForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isStaffSignup, setIsStaffSignup] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string>("");
 
   const passwordStrength = useMemo(() => {
     let strength = 0;
@@ -57,6 +63,16 @@ const Signup = () => {
       nextErrors.email = "Please enter a valid email address.";
     }
 
+    if (isStaffSignup && !form.employeeId.trim()) {
+      nextErrors.employeeId = "Employee ID is required for staff signup.";
+    } else if (isStaffSignup && form.employeeId.trim()) {
+      // Validate Employee ID format: ST-S-xxxx (where xxxx is 4 digits)
+      if (!/^ST-S-\d{4}$/.test(form.employeeId.trim())) {
+        nextErrors.employeeId =
+          "Employee ID must be in correct format.";
+      }
+    }
+
     if (!form.password) {
       nextErrors.password = "Password is required.";
     } else if (form.password.length < 8) {
@@ -76,16 +92,70 @@ const Signup = () => {
     return nextErrors;
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitted(false);
+    setApiError("");
 
     const nextErrors = validate();
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length === 0) {
-      setIsSubmitted(true);
-      setForm(initialForm);
+      setIsLoading(true);
+      try {
+        // Use appropriate endpoint based on signup type
+        const endpoint = isStaffSignup
+          ? "http://localhost:5000/api/auth/staff-signup"
+          : "http://localhost:5000/api/auth/signup";
+
+        const payload: Record<string, unknown> = {
+          name: form.fullName,
+          email: form.email,
+          password: form.password,
+          confirmPassword: form.confirmPassword
+        };
+
+        // Add employeeId for staff signup
+        if (isStaffSignup) {
+          payload.employeeId = form.employeeId;
+        }
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setApiError(data.message || "Signup failed");
+          return;
+        }
+
+        setIsSubmitted(true);
+        setForm(initialForm);
+
+        // Store token if needed
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+        }
+
+        // Redirect to login or dashboard
+        setTimeout(() => {
+          navigate("/login");
+        }, 2000);
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "An error occurred during signup";
+        setApiError(message);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -106,9 +176,39 @@ const Signup = () => {
               Fill in your details to get started.
             </p>
 
+            <p className="mt-2 text-sm text-muted-foreground">
+              Want to create a staff account?{" "}
+              <button
+                type="button"
+                className="font-medium text-primary underline"
+                onClick={() => {
+                  setIsStaffSignup((prev) => {
+                    const next = !prev;
+                    if (!next) {
+                      setForm((current) => ({ ...current, employeeId: "" }));
+                      setErrors((current) => {
+                        const nextErrors = { ...current };
+                        delete nextErrors.employeeId;
+                        return nextErrors;
+                      });
+                    }
+                    return next;
+                  });
+                }}
+              >
+                {isStaffSignup ? "Use regular signup" : "Staff signup"}
+              </button>
+            </p>
+
             {isSubmitted ? (
               <div className="mt-4 rounded-md border border-border bg-muted px-4 py-3 text-sm">
-                Account created successfully.
+                Account created successfully. Redirecting to login...
+              </div>
+            ) : null}
+
+            {apiError ? (
+              <div className="mt-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {apiError}
               </div>
             ) : null}
 
@@ -171,6 +271,38 @@ const Signup = () => {
                   </p>
                 ) : null}
               </div>
+
+              {isStaffSignup ? (
+                <div>
+                  <label
+                    htmlFor="employeeId"
+                    className="mb-1.5 block text-sm font-medium"
+                  >
+                    Employee ID
+                  </label>
+                  <div className="relative">
+                    <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      id="employeeId"
+                      type="text"
+                      className={inputBaseClass}
+                      placeholder="Enter your employee ID"
+                      value={form.employeeId}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          employeeId: e.target.value.trimStart()
+                        }))
+                      }
+                    />
+                  </div>
+                  {errors.employeeId ? (
+                    <p className="mt-1 text-xs text-destructive">
+                      {errors.employeeId}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div>
                 <label
@@ -299,9 +431,10 @@ const Signup = () => {
 
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-ring"
+                disabled={isLoading}
+                className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Account
+                {isLoading ? "Creating Account..." : "Create Account"}
               </button>
             </form>
 

@@ -16,10 +16,14 @@ import {
   MapPin
 } from "lucide-react";
 import { ROUTE_PATHS } from "../constants/route.constant";
+import FeatureCard from "../components/FeatureCard";
 import img1 from "../assets/images/img1.jpg";
 import img2 from "../assets/images/img2.jpg";
 import img3 from "../assets/images/img3.jpg";
 import img4 from "../assets/images/img4.jpg";
+import img5 from "../assets/images/img5.jpg";
+import img6 from "../assets/images/img6.jpg";
+import hero from "../assets/images/hero.jpg";
 
 const Home = () => {
   return (
@@ -131,38 +135,11 @@ const Home = () => {
             </div>
 
             <div className="relative">
-              <div className="relative rounded-2xl bg-gradient-to-br from-primary/20 to-orange-500/20 p-8 backdrop-blur">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-xl bg-background/80 backdrop-blur p-4 shadow-lg">
-                    <UtensilsCrossed className="h-8 w-8 text-primary mb-2" />
-                    <h3 className="font-semibold">Menu Management</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Easy menu updates
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-background/80 backdrop-blur p-4 shadow-lg">
-                    <ClipboardList className="h-8 w-8 text-primary mb-2" />
-                    <h3 className="font-semibold">Order Tracking</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Real-time updates
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-background/80 backdrop-blur p-4 shadow-lg">
-                    <BarChart3 className="h-8 w-8 text-primary mb-2" />
-                    <h3 className="font-semibold">Analytics</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Data-driven insights
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-background/80 backdrop-blur p-4 shadow-lg">
-                    <Users className="h-8 w-8 text-primary mb-2" />
-                    <h3 className="font-semibold">Staff Management</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Team coordination
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <img
+                src={hero}
+                alt="Restaurant dashboard interface"
+                className="w-full h-auto rounded-2xl shadow-2xl border border-border object-cover"
+              />
             </div>
           </div>
         </div>
@@ -209,6 +186,20 @@ const Home = () => {
                 className="h-64 w-full object-cover transition duration-300 group-hover:scale-105"
               />
             </div>
+            <div className="group overflow-hidden rounded-xl border border-border bg-card">
+              <img
+                src={img5}
+                alt="Restaurant service team"
+                className="h-64 w-full object-cover transition duration-300 group-hover:scale-105"
+              />
+            </div>
+            <div className="group overflow-hidden rounded-xl border border-border bg-card">
+              <img
+                src={img6}
+                alt="Restaurant service team"
+                className="h-64 w-full object-cover transition duration-300 group-hover:scale-105"
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -227,73 +218,48 @@ const Home = () => {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="rounded-xl border border-border bg-card p-6 hover:shadow-lg transition">
-              <div className="rounded-lg bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
-                <UtensilsCrossed className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Menu Management</h3>
-              <p className="text-muted-foreground">
-                Create, update, and organize your menu items with ease. Add
-                photos, descriptions, and pricing in seconds.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-6 hover:shadow-lg transition">
-              <div className="rounded-lg bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
-                <ClipboardList className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Order Management</h3>
-              <p className="text-muted-foreground">
-                Track orders from placement to delivery. Manage dine-in,
-                takeout, and delivery orders seamlessly.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-6 hover:shadow-lg transition">
-              <div className="rounded-lg bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
-                <BarChart3 className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">
-                Analytics & Reports
-              </h3>
-              <p className="text-muted-foreground">
-                Get detailed insights into sales, popular items, and customer
-                preferences with powerful analytics.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-6 hover:shadow-lg transition">
-              <div className="rounded-lg bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
-                <Users className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Staff Management</h3>
-              <p className="text-muted-foreground">
-                Manage your team efficiently with role-based access, shift
-                scheduling, and performance tracking.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-6 hover:shadow-lg transition">
-              <div className="rounded-lg bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
-                <Clock className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Real-time Updates</h3>
-              <p className="text-muted-foreground">
-                Stay updated with real-time notifications for new orders,
-                inventory alerts, and customer requests.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-6 hover:shadow-lg transition">
-              <div className="rounded-lg bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
-                <Shield className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Secure & Reliable</h3>
-              <p className="text-muted-foreground">
-                Your data is protected with enterprise-grade security and
-                automatic backups for peace of mind.
-              </p>
-            </div>
+            <FeatureCard
+              icon={<UtensilsCrossed className="h-6 w-6 text-primary" />}
+              title="Menu Management"
+              description="Create, update, and organize your menu items with ease. Add photos, descriptions, and pricing in seconds."
+              image={img1}
+              imageAlt="Menu Management"
+            />
+            <FeatureCard
+              icon={<ClipboardList className="h-6 w-6 text-primary" />}
+              title="Order Management"
+              description="Track orders from placement to delivery. Manage dine-in, takeout, and delivery orders seamlessly."
+              image={img2}
+              imageAlt="Order Management"
+            />
+            <FeatureCard
+              icon={<BarChart3 className="h-6 w-6 text-primary" />}
+              title="Analytics & Reports"
+              description="Get detailed insights into sales, popular items, and customer preferences with powerful analytics."
+              image={img3}
+              imageAlt="Analytics & Reports"
+            />
+            <FeatureCard
+              icon={<Users className="h-6 w-6 text-primary" />}
+              title="Staff Management"
+              description="Manage your team efficiently with role-based access, shift scheduling, and performance tracking."
+              image={img4}
+              imageAlt="Staff Management"
+            />
+            <FeatureCard
+              icon={<Clock className="h-6 w-6 text-primary" />}
+              title="Real-time Updates"
+              description="Stay updated with real-time notifications for new orders, inventory alerts, and customer requests."
+              image={img5}
+              imageAlt="Real-time Updates"
+            />
+            <FeatureCard
+              icon={<Shield className="h-6 w-6 text-primary" />}
+              title="Secure & Reliable"
+              description="Your data is protected with enterprise-grade security and automatic backups for peace of mind."
+              image={img6}
+              imageAlt="Secure & Reliable"
+            />
           </div>
         </div>
       </section>

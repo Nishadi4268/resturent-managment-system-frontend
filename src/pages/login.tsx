@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import login from "../assets/images/login.png";
 
@@ -12,14 +12,17 @@ type FormErrors = Partial<Record<keyof FormData, string>>;
 
 const initialForm: FormData = {
   email: "",
-  password: "",
+  password: ""
 };
 
 const Login = () => {
+  const navigate = useNavigate();
   const [form, setForm] = useState<FormData>(initialForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string>("");
 
   const passwordStrength = useMemo(() => {
     let strength = 0;
@@ -55,16 +58,52 @@ const Login = () => {
     return nextErrors;
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitted(false);
+    setApiError("");
 
     const nextErrors = validate();
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length === 0) {
-      setIsSubmitted(true);
-      setForm(initialForm);
+      setIsLoading(true);
+      try {
+        const response = await fetch("http://localhost:5000/api/auth/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            email: form.email,
+            password: form.password
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setApiError(data.message || "Login failed");
+          return;
+        }
+
+        setIsSubmitted(true);
+        setForm(initialForm);
+
+        // Store token if needed
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+        }
+
+        // Redirect to /dashboard
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 2000);
+      } catch (error: any) {
+        setApiError(error.message || "An error occurred during login");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -87,12 +126,17 @@ const Login = () => {
 
             {isSubmitted ? (
               <div className="mt-4 rounded-md border border-border bg-muted px-4 py-3 text-sm">
-                Account Logged successfully.
+                Account Logged successfully. Redirecting...
+              </div>
+            ) : null}
+
+            {apiError ? (
+              <div className="mt-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {apiError}
               </div>
             ) : null}
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
-             
               <div>
                 <label
                   htmlFor="email"
@@ -172,9 +216,10 @@ const Login = () => {
 
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-ring"
+                disabled={isLoading}
+                className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Sign IN
+                {isLoading ? "Signing in..." : "Sign IN"}
               </button>
             </form>
 
