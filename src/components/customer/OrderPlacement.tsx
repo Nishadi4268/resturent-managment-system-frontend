@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ShoppingCart,
   Minus,
@@ -7,7 +7,10 @@ import {
   Tag,
   MapPin,
   CreditCard,
-  Check
+  Check,
+  Square,
+  SquareCheck,
+  Clock3
 } from "lucide-react";
 
 interface CartItem {
@@ -15,44 +18,280 @@ interface CartItem {
   name: string;
   price: number;
   quantity: number;
+  image?: string;
   specialInstructions?: string;
 }
 
+const API_BASE_URL = "http://localhost:5000";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
+const toDateTimeLocalValue = (date: Date) => {
+  const pad = (value: number) => String(value).padStart(2, "0");
+
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 const OrderPlacement = () => {
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    { id: "1", name: "Grilled Salmon", price: 24.99, quantity: 1 },
-    {
-      id: "2",
-      name: "Caesar Salad",
-      price: 12.99,
-      quantity: 2,
-      specialInstructions: "No croutons"
-    }
-  ]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [promoCode, setPromoCode] = useState("");
   const [orderType, setOrderType] = useState<
     "dine-in" | "takeaway" | "delivery"
   >("dine-in");
   const [selectedTable, setSelectedTable] = useState("5");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [requestedDateTime, setRequestedDateTime] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<
     "cash" | "card" | "online"
   >("card");
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [isCartLoading, setIsCartLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [statusType, setStatusType] = useState<"success" | "error" | "">("");
+  const minRequestedDateTime = toDateTimeLocalValue(new Date());
 
-  const updateQuantity = (id: string, change: number) => {
-    setCartItems(
-      cartItems.map((item) =>
-        item.id === id
-          ? { ...item, quantity: Math.max(1, item.quantity + change) }
-          : item
-      )
+  const getToken = () => localStorage.getItem("token");
+
+  const loadCart = useCallback(async () => {
+    const token = getToken();
+
+    if (!token) {
+      setCartItems([]);
+      setStatusType("error");
+      setStatusMessage("Please login to view your cart.");
+      setIsCartLoading(false);
+      return;
+    }
+
+    try {
+      setIsCartLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/cart`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to load cart");
+      }
+
+      setCartItems(data.cart?.items || []);
+      setSelectedItemIds([]);
+      setStatusType("");
+      setStatusMessage("");
+    } catch (error: unknown) {
+      setStatusType("error");
+      setStatusMessage(getErrorMessage(error, "Failed to load cart"));
+    } finally {
+      setIsCartLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCart();
+  }, [loadCart]);
+
+  const updateQuantity = async (id: string, change: number) => {
+    const currentItem = cartItems.find((item) => item.id === id);
+
+    if (!currentItem) return;
+
+    const nextQuantity = Math.max(1, currentItem.quantity + change);
+    const token = getToken();
+
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/cart/items/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ quantity: nextQuantity })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update quantity");
+      }
+
+      setCartItems(data.cart?.items || []);
+    } catch (error: unknown) {
+      setStatusType("error");
+      setStatusMessage(getErrorMessage(error, "Failed to update quantity"));
+    }
+  };
+
+  const removeItem = async (id: string) => {
+    const token = getToken();
+
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/cart/items/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to remove item");
+      }
+
+      setCartItems(data.cart?.items || []);
+      setSelectedItemIds((prev) =>
+        prev.filter((selectedId) => selectedId !== id)
+      );
+    } catch (error: unknown) {
+      setStatusType("error");
+      setStatusMessage(getErrorMessage(error, "Failed to remove item"));
+    }
+  };
+
+  const clearCart = async () => {
+    const token = getToken();
+
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/cart`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to clear cart");
+      }
+
+      setCartItems(data.cart?.items || []);
+      setSelectedItemIds([]);
+    } catch (error: unknown) {
+      setStatusType("error");
+      setStatusMessage(getErrorMessage(error, "Failed to clear cart"));
+    }
+  };
+
+  const toggleItemSelection = (id: string) => {
+    setSelectedItemIds((prev) =>
+      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
     );
   };
 
-  const removeItem = (id: string) => {
-    setCartItems(cartItems.filter((item) => item.id !== id));
+  const toggleSelectAll = () => {
+    const currentCartIds = cartItems.map((item) => item.id);
+    const allSelected =
+      currentCartIds.length > 0 &&
+      currentCartIds.every((id) => selectedItemIds.includes(id));
+
+    setSelectedItemIds(allSelected ? [] : currentCartIds);
   };
 
-  const subtotal = cartItems.reduce(
+  const placeOrder = async () => {
+    const token = getToken();
+
+    if (!token) {
+      setStatusType("error");
+      setStatusMessage("Please login first to place order.");
+      return;
+    }
+
+    if (selectedItemIds.length === 0) {
+      setStatusType("error");
+      setStatusMessage("Please select at least one cart item to place order.");
+      return;
+    }
+
+    if (!requestedDateTime) {
+      setStatusType("error");
+      setStatusMessage("Please select your requested order date and time.");
+      return;
+    }
+
+    if (new Date(requestedDateTime).getTime() < Date.now()) {
+      setStatusType("error");
+      setStatusMessage("Requested order date and time cannot be in the past.");
+      return;
+    }
+
+    try {
+      setIsPlacingOrder(true);
+      const selectedCount = selectedItemIds.length;
+
+      const response = await fetch(`${API_BASE_URL}/api/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          selectedItemIds,
+          items: selectedCartItems.map((item) => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            specialInstructions: item.specialInstructions
+          })),
+          promoCode,
+          orderType,
+          tableNumber: orderType === "dine-in" ? selectedTable : undefined,
+          deliveryAddress:
+            orderType === "delivery" ? deliveryAddress : undefined,
+          requestedDateTime,
+          paymentMethod
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to place order");
+      }
+
+      setStatusType("success");
+      setStatusMessage(
+        `Order placed successfully with ${selectedCount} selected item${selectedCount > 1 ? "s" : ""}.`
+      );
+      setPromoCode("");
+      setSelectedItemIds([]);
+      await loadCart();
+    } catch (error: unknown) {
+      setStatusType("error");
+      setStatusMessage(getErrorMessage(error, "Failed to place order"));
+    } finally {
+      setIsPlacingOrder(false);
+    }
+  };
+
+  const selectedCartItems = cartItems.filter((item) =>
+    selectedItemIds.includes(item.id)
+  );
+
+  const subtotal = selectedCartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
@@ -68,6 +307,18 @@ const OrderPlacement = () => {
         <p className="text-muted-foreground mt-1">
           Review and confirm your order
         </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          You can select multiple cart items and place them in one order.
+        </p>
+        {statusMessage && (
+          <p
+            className={`mt-2 text-sm font-medium ${
+              statusType === "success" ? "text-green-600" : "text-red-600"
+            }`}
+          >
+            {statusMessage}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -78,12 +329,30 @@ const OrderPlacement = () => {
               <ShoppingCart className="size-5" />
               Shopping Cart ({cartItems.length} items)
             </h3>
-            <button className="text-sm text-destructive hover:underline">
-              Clear Cart
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={toggleSelectAll}
+                className="text-sm text-primary hover:underline"
+              >
+                {cartItems.length > 0 &&
+                cartItems.every((item) => selectedItemIds.includes(item.id))
+                  ? "Unselect All"
+                  : "Select All"}
+              </button>
+              <button
+                onClick={clearCart}
+                className="text-sm text-destructive hover:underline"
+              >
+                Clear Cart
+              </button>
+            </div>
           </div>
 
-          {cartItems.length === 0 ? (
+          {isCartLoading ? (
+            <div className="text-center py-12 bg-card border border-border rounded-lg">
+              <p className="text-muted-foreground">Loading cart...</p>
+            </div>
+          ) : cartItems.length === 0 ? (
             <div className="text-center py-12 bg-card border border-border rounded-lg">
               <ShoppingCart className="size-12 mx-auto text-muted-foreground mb-3" />
               <p className="text-muted-foreground">Your cart is empty</p>
@@ -95,11 +364,25 @@ const OrderPlacement = () => {
                 className="bg-card border border-border rounded-lg p-4"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h4 className="font-bold">{item.name}</h4>
-                    <p className="text-sm text-primary font-semibold">
-                      ${item.price}
-                    </p>
+                  <div className="flex items-start gap-3 flex-1">
+                    <button
+                      onClick={() => toggleItemSelection(item.id)}
+                      className="mt-0.5 text-primary"
+                      aria-label={`Select ${item.name}`}
+                    >
+                      {selectedItemIds.includes(item.id) ? (
+                        <SquareCheck className="size-5" />
+                      ) : (
+                        <Square className="size-5" />
+                      )}
+                    </button>
+
+                    <div>
+                      <h4 className="font-bold">{item.name}</h4>
+                      <p className="text-sm text-primary font-semibold">
+                        ${item.price}
+                      </p>
+                    </div>
                   </div>
                   <button
                     onClick={() => removeItem(item.id)}
@@ -230,6 +513,8 @@ const OrderPlacement = () => {
                   className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   rows={3}
                   placeholder="Enter your delivery address..."
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
                 />
               </div>
             )}
@@ -268,12 +553,30 @@ const OrderPlacement = () => {
             </div>
           </div>
 
+          {/* Requested Date & Time */}
+          <div className="bg-card border border-border rounded-lg p-4">
+            <h3 className="font-bold mb-3 flex items-center gap-2">
+              <Clock3 className="size-5 text-indigo-500" />
+              Requested Date & Time
+            </h3>
+            <input
+              type="datetime-local"
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              value={requestedDateTime}
+              onChange={(e) => setRequestedDateTime(e.target.value)}
+              min={minRequestedDateTime}
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Choose when you want this order prepared or delivered.
+            </p>
+          </div>
+
           {/* Price Summary */}
           <div className="bg-card border border-border rounded-lg p-4">
             <h3 className="font-bold mb-3">Order Summary</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Subtotal</span>
+                <span>Subtotal ({selectedItemIds.length} selected)</span>
                 <span className="font-medium">${subtotal.toFixed(2)}</span>
               </div>
               {discount > 0 && (
@@ -296,9 +599,17 @@ const OrderPlacement = () => {
           </div>
 
           {/* Confirm Order Button */}
-          <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-bold text-lg">
+          <button
+            onClick={placeOrder}
+            disabled={
+              isPlacingOrder ||
+              selectedItemIds.length === 0 ||
+              !requestedDateTime
+            }
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-bold text-lg disabled:opacity-60 disabled:cursor-not-allowed"
+          >
             <Check className="size-5" />
-            Confirm Order
+            {isPlacingOrder ? "Placing Order..." : "Confirm Order"}
           </button>
         </div>
       </div>

@@ -1,56 +1,125 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, RotateCcw, Star, TrendingUp } from "lucide-react";
 
+type OrderStatus =
+  | "pending"
+  | "confirmed"
+  | "preparing"
+  | "out-for-delivery"
+  | "completed"
+  | "cancelled";
+
 interface PastOrder {
-  id: string;
-  items: string[];
-  total: number;
-  date: string;
-  status: "completed" | "cancelled";
-  rating?: number;
+  _id: string;
+  items: {
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    specialInstructions?: string;
+  }[];
+  pricing: {
+    total: number;
+  };
+  status: OrderStatus;
+  createdAt: string;
+  requestedDateTime?: string;
 }
 
+const API_BASE_URL = "http://localhost:5000";
+
+const formatDate = (value: string) => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Invalid date";
+  }
+
+  return date.toLocaleString();
+};
+
+const getStatusBadgeStyles = (status: OrderStatus) => {
+  switch (status) {
+    case "completed":
+      return "bg-green-100 text-green-700";
+    case "cancelled":
+      return "bg-red-100 text-red-700";
+    case "pending":
+      return "bg-gray-100 text-gray-700";
+    case "confirmed":
+      return "bg-blue-100 text-blue-700";
+    case "preparing":
+      return "bg-yellow-100 text-yellow-700";
+    case "out-for-delivery":
+      return "bg-purple-100 text-purple-700";
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+};
+
 const OrderHistory = () => {
-  const [pastOrders] = useState<PastOrder[]>([
-    {
-      id: "ORD780",
-      items: ["Grilled Salmon", "Caesar Salad"],
-      total: 37.98,
-      date: "March 1, 2026",
-      status: "completed",
-      rating: 5
-    },
-    {
-      id: "ORD775",
-      items: ["Margherita Pizza", "Iced Coffee"],
-      total: 24.98,
-      date: "Feb 28, 2026",
-      status: "completed",
-      rating: 4
-    },
-    {
-      id: "ORD770",
-      items: ["Chocolate Cake"],
-      total: 8.99,
-      date: "Feb 25, 2026",
-      status: "completed"
-    },
-    {
-      id: "ORD765",
-      items: ["Ribeye Steak", "Wine"],
-      total: 45.0,
-      date: "Feb 20, 2026",
-      status: "cancelled"
-    }
-  ]);
+  const [pastOrders, setPastOrders] = useState<PastOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const totalSpent = pastOrders
-    .filter((o) => o.status === "completed")
-    .reduce((sum, o) => sum + o.total, 0);
+  useEffect(() => {
+    const loadOrders = async () => {
+      const token = localStorage.getItem("token");
 
-  const completedOrders = pastOrders.filter(
-    (o) => o.status === "completed"
-  ).length;
+      if (!token) {
+        setErrorMessage("Please login to view order history.");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setErrorMessage("");
+
+        const response = await fetch(`${API_BASE_URL}/api/orders/my`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to load order history");
+        }
+
+        const sortedOrders = [...(data.orders || [])].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        setPastOrders(sortedOrders);
+      } catch (error: unknown) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to load order history"
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadOrders();
+  }, []);
+
+  const totalSpent = useMemo(
+    () =>
+      pastOrders
+        .filter((o) => o.status === "completed")
+        .reduce((sum, o) => sum + (o.pricing?.total || 0), 0),
+    [pastOrders]
+  );
+
+  const completedOrders = useMemo(
+    () => pastOrders.filter((o) => o.status === "completed").length,
+    [pastOrders]
+  );
 
   return (
     <div className="space-y-6">
@@ -88,35 +157,48 @@ const OrderHistory = () => {
       <div className="space-y-4">
         <h3 className="text-xl font-bold">Past Orders</h3>
 
-        {pastOrders.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12 bg-card border border-border rounded-lg">
+            <p className="text-muted-foreground">Loading order history...</p>
+          </div>
+        ) : errorMessage ? (
+          <div className="text-center py-12 bg-card border border-border rounded-lg">
+            <p className="text-red-600">{errorMessage}</p>
+          </div>
+        ) : pastOrders.length === 0 ? (
           <div className="text-center py-12 bg-card border border-border rounded-lg">
             <p className="text-muted-foreground">No order history found</p>
           </div>
         ) : (
           pastOrders.map((order) => (
             <div
-              key={order.id}
+              key={order._id}
               className={`bg-card border-2 rounded-lg p-4 ${
                 order.status === "cancelled" ? "opacity-60" : ""
               }`}
             >
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h4 className="font-bold text-lg">{order.id}</h4>
-                  <p className="text-sm text-muted-foreground">{order.date}</p>
+                  <h4 className="font-bold text-lg">
+                    Order #{order._id.slice(-6).toUpperCase()}
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    Placed: {formatDate(order.createdAt)}
+                  </p>
+                  {order.requestedDateTime && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Requested: {formatDate(order.requestedDateTime)}
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold text-primary">
-                    ${order.total.toFixed(2)}
+                    ${(order.pricing?.total || 0).toFixed(2)}
                   </p>
                   <span
-                    className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-1 ${
-                      order.status === "completed"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
+                    className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-1 ${getStatusBadgeStyles(order.status)}`}
                   >
-                    {order.status.toUpperCase()}
+                    {order.status.toUpperCase().replace(/-/g, " ")}
                   </span>
                 </div>
               </div>
@@ -126,10 +208,10 @@ const OrderHistory = () => {
                 <div className="flex flex-wrap gap-2">
                   {order.items.map((item, idx) => (
                     <span
-                      key={idx}
+                      key={`${item.id}-${idx}`}
                       className="bg-background px-2 py-1 rounded text-xs font-medium"
                     >
-                      {item}
+                      {item.name} x{item.quantity}
                     </span>
                   ))}
                 </div>
@@ -138,30 +220,10 @@ const OrderHistory = () => {
               {/* Rating */}
               {order.status === "completed" && (
                 <div className="mb-4">
-                  {order.rating ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">
-                        Your Rating:
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`size-4 ${
-                              i < order.rating!
-                                ? "fill-yellow-400 text-yellow-400"
-                                : "text-gray-300"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <button className="flex items-center gap-2 text-sm text-primary hover:underline">
-                      <Star className="size-4" />
-                      Rate this order
-                    </button>
-                  )}
+                  <button className="flex items-center gap-2 text-sm text-primary hover:underline">
+                    <Star className="size-4" />
+                    Rate this order
+                  </button>
                 </div>
               )}
 

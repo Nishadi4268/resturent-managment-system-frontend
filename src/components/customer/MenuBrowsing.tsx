@@ -2,6 +2,16 @@ import { useState } from "react";
 import { Search, Filter, Star, Heart, Plus } from "lucide-react";
 import { MENU_CATEGORIES, MENU_ITEMS } from "@/constants/menu.constant";
 
+const API_BASE_URL = "http://localhost:5000";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
 const MenuBrowsing = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -9,6 +19,54 @@ const MenuBrowsing = () => {
     "all" | "veg" | "non-veg" | "sweets" | "drinks"
   >("all");
   const [sortBy, setSortBy] = useState<"name" | "price" | "rating">("name");
+  const [addingItemId, setAddingItemId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [statusType, setStatusType] = useState<"success" | "error" | "">("");
+
+  const addToCart = async (item: (typeof MENU_ITEMS)[number]) => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setStatusType("error");
+      setStatusMessage("Please login first to add items to cart.");
+      return;
+    }
+
+    try {
+      setAddingItemId(item.id);
+      setStatusMessage("");
+      setStatusType("");
+
+      const response = await fetch(`${API_BASE_URL}/api/cart/add`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: 1,
+          image: item.image
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to add item to cart");
+      }
+
+      setStatusType("success");
+      setStatusMessage(`${item.name} added to cart.`);
+    } catch (error: unknown) {
+      setStatusType("error");
+      setStatusMessage(getErrorMessage(error, "Failed to add item to cart"));
+    } finally {
+      setAddingItemId(null);
+    }
+  };
 
   const typeLabel: Record<"veg" | "non-veg" | "sweets" | "drinks", string> = {
     veg: "VEG",
@@ -46,6 +104,15 @@ const MenuBrowsing = () => {
         <p className="text-muted-foreground mt-1">
           Explore our delicious offerings
         </p>
+        {statusMessage && (
+          <p
+            className={`mt-2 text-sm font-medium ${
+              statusType === "success" ? "text-green-600" : "text-red-600"
+            }`}
+          >
+            {statusMessage}
+          </p>
+        )}
       </div>
 
       {/* Search and Filters */}
@@ -228,9 +295,13 @@ const MenuBrowsing = () => {
               </div>
 
               <div className="flex gap-2">
-                <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-colors">
+                <button
+                  onClick={() => addToCart(item)}
+                  disabled={addingItemId === item.id}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
                   <Plus className="size-4" />
-                  Add to Cart
+                  {addingItemId === item.id ? "Adding..." : "Add to Cart"}
                 </button>
                 <button className="p-2 border border-border rounded-lg hover:bg-muted transition-colors">
                   <Heart className="size-5" />

@@ -1,80 +1,206 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapPin, Clock, CheckCircle, X, Truck } from "lucide-react";
 
-interface Order {
-  id: string;
-  items: string[];
-  status: "pending" | "preparing" | "ready" | "delivering" | "completed";
-  estimatedTime: string;
-  orderType: "dine-in" | "takeaway" | "delivery";
-  table?: number;
-  createdAt: string;
-  trackingSteps: {
-    label: string;
-    completed: boolean;
-    time?: string;
+type OrderStatus =
+  | "pending"
+  | "confirmed"
+  | "preparing"
+  | "out-for-delivery"
+  | "completed"
+  | "cancelled";
+
+interface TrackedOrder {
+  _id: string;
+  items: {
+    id: string;
+    name: string;
+    quantity: number;
   }[];
+  status: OrderStatus;
+  orderType: "dine-in" | "takeaway" | "delivery";
+  tableNumber?: string;
+  createdAt: string;
+  requestedDateTime?: string;
 }
 
-const OrderTracking = () => {
-  const [activeOrders] = useState<Order[]>([
-    {
-      id: "ORD789",
-      items: ["Grilled Salmon", "Caesar Salad", "Iced Coffee"],
-      status: "preparing",
-      estimatedTime: "15 mins",
-      orderType: "dine-in",
-      table: 5,
-      createdAt: "10:30 AM",
-      trackingSteps: [
-        { label: "Order Placed", completed: true, time: "10:30 AM" },
-        { label: "Confirmed", completed: true, time: "10:31 AM" },
-        { label: "Preparing", completed: true, time: "10:32 AM" },
-        { label: "Ready", completed: false },
-        { label: "Served", completed: false }
-      ]
-    },
-    {
-      id: "ORD790",
-      items: ["Margherita Pizza", "Chocolate Cake"],
-      status: "delivering",
-      estimatedTime: "10 mins",
-      orderType: "delivery",
-      createdAt: "10:15 AM",
-      trackingSteps: [
-        { label: "Order Placed", completed: true, time: "10:15 AM" },
-        { label: "Confirmed", completed: true, time: "10:16 AM" },
-        { label: "Preparing", completed: true, time: "10:17 AM" },
-        { label: "Out for Delivery", completed: true, time: "10:35 AM" },
-        { label: "Delivered", completed: false }
-      ]
-    }
-  ]);
+const API_BASE_URL = "http://localhost:5000";
 
-  const getStatusColor = (status: Order["status"]) => {
+const ORDER_FLOW: OrderStatus[] = [
+  "pending",
+  "confirmed",
+  "preparing",
+  "out-for-delivery",
+  "completed"
+];
+
+const formatDate = (value?: string) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return parsed.toLocaleString();
+};
+
+const getEstimatedTime = (status: OrderStatus) => {
+  switch (status) {
+    case "pending":
+      return "20 mins";
+    case "confirmed":
+      return "18 mins";
+    case "preparing":
+      return "12 mins";
+    case "out-for-delivery":
+      return "10 mins";
+    case "completed":
+      return "Delivered";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return "-";
+  }
+};
+
+const getTrackingSteps = (
+  status: OrderStatus,
+  orderType: TrackedOrder["orderType"]
+) => {
+  const flowForOrder =
+    orderType === "delivery"
+      ? ORDER_FLOW
+      : ["pending", "confirmed", "preparing", "completed"];
+
+  const currentIndex = flowForOrder.indexOf(status);
+
+  const labelMap: Record<string, string> = {
+    pending: "Order Placed",
+    confirmed: "Confirmed",
+    preparing: "Preparing",
+    "out-for-delivery": "Out for Delivery",
+    completed: orderType === "delivery" ? "Delivered" : "Served"
+  };
+
+  return flowForOrder.map((step, index) => ({
+    label: labelMap[step] || step,
+    completed: currentIndex >= 0 && index <= currentIndex
+  }));
+};
+
+const OrderTracking = () => {
+  const [activeOrders, setActiveOrders] = useState<TrackedOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [statusType, setStatusType] = useState<"success" | "error" | "">("");
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(
+    null
+  );
+  const [confirmCancelOrder, setConfirmCancelOrder] =
+    useState<TrackedOrder | null>(null);
+
+  const token = useMemo(() => localStorage.getItem("token"), []);
+
+  const loadActiveOrders = useCallback(async () => {
+    if (!token) {
+      setIsLoading(false);
+      setStatusType("error");
+      setStatusMessage("Please login to track your orders.");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/orders/my/active`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to load active orders");
+      }
+
+      const sortedOrders = [...(data.orders || [])].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      setActiveOrders(sortedOrders);
+      setStatusType("");
+      setStatusMessage("");
+    } catch (error: unknown) {
+      setStatusType("error");
+      setStatusMessage(
+        error instanceof Error ? error.message : "Failed to load active orders"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    loadActiveOrders();
+  }, [loadActiveOrders]);
+
+  const cancelOrder = async (orderId: string) => {
+    if (!token) return;
+
+    try {
+      setCancellingOrderId(orderId);
+      const response = await fetch(
+        `${API_BASE_URL}/api/orders/${orderId}/cancel`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to cancel order");
+      }
+
+      setStatusType("success");
+      setStatusMessage("Order cancelled successfully.");
+      await loadActiveOrders();
+    } catch (error: unknown) {
+      setStatusType("error");
+      setStatusMessage(
+        error instanceof Error ? error.message : "Failed to cancel order"
+      );
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
+  const getStatusColor = (status: TrackedOrder["status"]) => {
     switch (status) {
       case "pending":
         return "bg-gray-100 text-gray-700 border-gray-300";
+      case "confirmed":
+        return "bg-blue-100 text-blue-700 border-blue-300";
       case "preparing":
         return "bg-yellow-100 text-yellow-700 border-yellow-300";
-      case "ready":
-        return "bg-green-100 text-green-700 border-green-300";
-      case "delivering":
-        return "bg-blue-100 text-blue-700 border-blue-300";
-      case "completed":
+      case "out-for-delivery":
         return "bg-purple-100 text-purple-700 border-purple-300";
+      case "completed":
+        return "bg-green-100 text-green-700 border-green-300";
+      case "cancelled":
+        return "bg-red-100 text-red-700 border-red-300";
       default:
         return "bg-gray-100 text-gray-700";
     }
   };
 
-  const getStatusIcon = (status: Order["status"]) => {
+  const getStatusIcon = (status: TrackedOrder["status"]) => {
     switch (status) {
       case "preparing":
         return <Clock className="size-5" />;
-      case "ready":
+      case "completed":
         return <CheckCircle className="size-5" />;
-      case "delivering":
+      case "out-for-delivery":
         return <Truck className="size-5" />;
       default:
         return <MapPin className="size-5" />;
@@ -89,10 +215,23 @@ const OrderTracking = () => {
         <p className="text-muted-foreground mt-1">
           Track your orders in real-time
         </p>
+        {statusMessage && (
+          <p
+            className={`mt-2 text-sm font-medium ${
+              statusType === "success" ? "text-green-600" : "text-red-600"
+            }`}
+          >
+            {statusMessage}
+          </p>
+        )}
       </div>
 
       {/* Active Orders */}
-      {activeOrders.length === 0 ? (
+      {isLoading ? (
+        <div className="text-center py-12 bg-card border border-border rounded-lg">
+          <p className="text-muted-foreground">Loading active orders...</p>
+        </div>
+      ) : activeOrders.length === 0 ? (
         <div className="text-center py-12 bg-card border border-border rounded-lg">
           <MapPin className="size-12 mx-auto text-muted-foreground mb-3" />
           <p className="text-muted-foreground">No active orders to track</p>
@@ -101,16 +240,21 @@ const OrderTracking = () => {
         <div className="space-y-6">
           {activeOrders.map((order) => (
             <div
-              key={order.id}
+              key={order._id}
               className="bg-card border-2 border-border rounded-lg p-6"
             >
               {/* Order Header */}
               <div className="flex items-start justify-between mb-6">
                 <div>
-                  <h3 className="text-xl font-bold mb-1">{order.id}</h3>
+                  <h3 className="text-xl font-bold mb-1">
+                    Order #{order._id.slice(-6).toUpperCase()}
+                  </h3>
                   <p className="text-sm text-muted-foreground">
-                    Placed at {order.createdAt}
-                    {order.table && ` • Table ${order.table}`}
+                    Placed at {formatDate(order.createdAt)}
+                    {order.tableNumber && ` • Table ${order.tableNumber}`}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Requested: {formatDate(order.requestedDateTime)}
                   </p>
                 </div>
                 <div className="text-right">
@@ -118,11 +262,10 @@ const OrderTracking = () => {
                     className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border-2 ${getStatusColor(order.status)}`}
                   >
                     {getStatusIcon(order.status)}
-                    {order.status.charAt(0).toUpperCase() +
-                      order.status.slice(1)}
+                    {order.status.replace(/-/g, " ")}
                   </span>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Est. {order.estimatedTime}
+                    Est. {getEstimatedTime(order.status)}
                   </p>
                 </div>
               </div>
@@ -133,10 +276,10 @@ const OrderTracking = () => {
                 <div className="flex flex-wrap gap-2">
                   {order.items.map((item, idx) => (
                     <span
-                      key={idx}
+                      key={`${item.id}-${idx}`}
                       className="bg-background px-3 py-1 rounded-full text-sm font-medium"
                     >
-                      {item}
+                      {item.name} x{item.quantity}
                     </span>
                   ))}
                 </div>
@@ -150,41 +293,38 @@ const OrderTracking = () => {
                   <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
 
                   <div className="space-y-6">
-                    {order.trackingSteps.map((step, idx) => (
-                      <div
-                        key={idx}
-                        className="relative flex items-start gap-4"
-                      >
-                        {/* Step Circle */}
+                    {getTrackingSteps(order.status, order.orderType).map(
+                      (step, idx) => (
                         <div
-                          className={`relative z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                            step.completed
-                              ? "bg-green-500 border-green-500"
-                              : "bg-background border-border"
-                          }`}
+                          key={idx}
+                          className="relative flex items-start gap-4"
                         >
-                          {step.completed ? (
-                            <CheckCircle className="size-5 text-white" />
-                          ) : (
-                            <div className="w-3 h-3 rounded-full bg-gray-300" />
-                          )}
-                        </div>
-
-                        {/* Step Content */}
-                        <div className="flex-1 pt-1">
-                          <p
-                            className={`font-medium ${step.completed ? "text-foreground" : "text-muted-foreground"}`}
+                          {/* Step Circle */}
+                          <div
+                            className={`relative z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+                              step.completed
+                                ? "bg-green-500 border-green-500"
+                                : "bg-background border-border"
+                            }`}
                           >
-                            {step.label}
-                          </p>
-                          {step.time && (
-                            <p className="text-xs text-muted-foreground">
-                              {step.time}
+                            {step.completed ? (
+                              <CheckCircle className="size-5 text-white" />
+                            ) : (
+                              <div className="w-3 h-3 rounded-full bg-gray-300" />
+                            )}
+                          </div>
+
+                          {/* Step Content */}
+                          <div className="flex-1 pt-1">
+                            <p
+                              className={`font-medium ${step.completed ? "text-foreground" : "text-muted-foreground"}`}
+                            >
+                              {step.label}
                             </p>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    )}
                   </div>
                 </div>
               </div>
@@ -208,7 +348,7 @@ const OrderTracking = () => {
 
               {/* Delivery Tracking */}
               {order.orderType === "delivery" &&
-                order.status === "delivering" && (
+                order.status === "out-for-delivery" && (
                   <div className="bg-purple-50 border border-purple-300 rounded-lg p-4 mb-4">
                     <div className="flex items-start gap-3">
                       <Truck className="size-5 text-purple-600 flex-shrink-0 mt-0.5" />
@@ -232,15 +372,58 @@ const OrderTracking = () => {
                 <button className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors font-medium">
                   View Details
                 </button>
-                {order.status === "pending" && (
-                  <button className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium">
+                {(order.status === "pending" ||
+                  order.status === "confirmed") && (
+                  <button
+                    onClick={() => setConfirmCancelOrder(order)}
+                    disabled={cancellingOrderId === order._id}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
                     <X className="size-4" />
-                    Cancel Order
+                    {cancellingOrderId === order._id
+                      ? "Cancelling..."
+                      : "Cancel Order"}
                   </button>
                 )}
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {confirmCancelOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-foreground">
+              Cancel This Order?
+            </h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Are you sure you want to cancel Order #
+              {confirmCancelOrder._id.slice(-6).toUpperCase()}?
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              This action cannot be undone.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmCancelOrder(null)}
+                className="px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors"
+              >
+                Keep Order
+              </button>
+              <button
+                onClick={async () => {
+                  const orderId = confirmCancelOrder._id;
+                  setConfirmCancelOrder(null);
+                  await cancelOrder(orderId);
+                }}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Yes, Cancel Order
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
