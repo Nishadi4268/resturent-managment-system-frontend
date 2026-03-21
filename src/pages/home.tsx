@@ -241,10 +241,10 @@ const Home = () => {
             />
             <FeatureCard
               icon={<Users className="h-6 w-6 text-primary" />}
-              title="Staff Management"
-              description="Manage your team efficiently with role-based access, shift scheduling, and performance tracking."
+              title="Customer Engagement"
+              description="Build stronger customer relationships with feedback tracking, loyalty moments, and personalized service history."
               image={img4}
-              imageAlt="Staff Management"
+              imageAlt="Customer Engagement"
             />
             <FeatureCard
               icon={<Clock className="h-6 w-6 text-primary" />}

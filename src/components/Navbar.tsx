@@ -5,7 +5,6 @@ import { Link, useNavigate } from "react-router-dom";
 const Navbar = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [userName, setUserName] = useState<string>("");
 
   const handleLogout = () => {
     localStorage.removeItem("token");

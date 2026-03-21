@@ -1,101 +1,42 @@
 import { useState } from "react";
 import { Search, Filter, Star, Heart, Plus } from "lucide-react";
-
-interface MenuItem {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  category: string;
-  type: "veg" | "non-veg";
-  rating: number;
-  popular: boolean;
-  image: string;
-}
+import { MENU_CATEGORIES, MENU_ITEMS } from "@/constants/menu.constant";
 
 const MenuBrowsing = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [filterType, setFilterType] = useState<"all" | "veg" | "non-veg">(
-    "all"
-  );
+  const [filterType, setFilterType] = useState<
+    "all" | "veg" | "non-veg" | "sweets" | "drinks"
+  >("all");
   const [sortBy, setSortBy] = useState<"name" | "price" | "rating">("name");
 
-  const categories = ["All", "Starters", "Main Course", "Drinks", "Desserts"];
+  const typeLabel: Record<"veg" | "non-veg" | "sweets" | "drinks", string> = {
+    veg: "VEG",
+    "non-veg": "NON-VEG",
+    sweets: "SWEETS",
+    drinks: "DRINKS"
+  };
 
-  const menuItems: MenuItem[] = [
-    {
-      id: "1",
-      name: "Grilled Salmon",
-      description: "Fresh salmon with herbs and lemon",
-      price: 24.99,
-      category: "Main Course",
-      type: "non-veg",
-      rating: 4.8,
-      popular: true,
-      image: "🐟"
-    },
-    {
-      id: "2",
-      name: "Caesar Salad",
-      description: "Crisp romaine lettuce with parmesan",
-      price: 12.99,
-      category: "Starters",
-      type: "veg",
-      rating: 4.5,
-      popular: true,
-      image: "🥗"
-    },
-    {
-      id: "3",
-      name: "Margherita Pizza",
-      description: "Classic pizza with tomato and mozzarella",
-      price: 18.99,
-      category: "Main Course",
-      type: "veg",
-      rating: 4.7,
-      popular: true,
-      image: "🍕"
-    },
-    {
-      id: "4",
-      name: "Chocolate Cake",
-      description: "Rich chocolate cake with ganache",
-      price: 8.99,
-      category: "Desserts",
-      type: "veg",
-      rating: 4.9,
-      popular: false,
-      image: "🍰"
-    },
-    {
-      id: "5",
-      name: "Iced Coffee",
-      description: "Cold brewed coffee with ice",
-      price: 5.99,
-      category: "Drinks",
-      type: "veg",
-      rating: 4.3,
-      popular: false,
-      image: "☕"
-    }
-  ];
+  const typeStyle: Record<"veg" | "non-veg" | "sweets" | "drinks", string> = {
+    veg: "bg-green-100 text-green-700",
+    "non-veg": "bg-red-100 text-red-700",
+    sweets: "bg-pink-100 text-pink-700",
+    drinks: "bg-blue-100 text-blue-700"
+  };
 
-  const filteredItems = menuItems
-    .filter((item) => {
-      const matchesSearch =
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory =
-        selectedCategory === "all" || item.category === selectedCategory;
-      const matchesType = filterType === "all" || item.type === filterType;
-      return matchesSearch && matchesCategory && matchesType;
-    })
-    .sort((a, b) => {
-      if (sortBy === "price") return a.price - b.price;
-      if (sortBy === "rating") return b.rating - a.rating;
-      return a.name.localeCompare(b.name);
-    });
+  const filteredItems = MENU_ITEMS.filter((item) => {
+    const matchesSearch =
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory =
+      selectedCategory === "all" || item.category === selectedCategory;
+    const matchesType = filterType === "all" || item.type === filterType;
+    return matchesSearch && matchesCategory && matchesType;
+  }).sort((a, b) => {
+    if (sortBy === "price") return a.price - b.price;
+    if (sortBy === "rating") return b.rating - a.rating;
+    return a.name.localeCompare(b.name);
+  });
 
   return (
     <div className="space-y-6">
@@ -131,15 +72,15 @@ const MenuBrowsing = () => {
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
             >
-              {categories.map((cat) => (
-                <option key={cat} value={cat.toLowerCase()}>
-                  {cat}
+              {MENU_CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Veg/Non-Veg Filter */}
+          {/* Type Filter */}
           <div className="flex gap-2 border border-border rounded-lg p-1">
             <button
               onClick={() => setFilterType("all")}
@@ -171,6 +112,26 @@ const MenuBrowsing = () => {
             >
               🍖 Non-Veg
             </button>
+            <button
+              onClick={() => setFilterType("sweets")}
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                filterType === "sweets"
+                  ? "bg-pink-500 text-white"
+                  : "hover:bg-muted"
+              }`}
+            >
+              🍰 Sweets
+            </button>
+            <button
+              onClick={() => setFilterType("drinks")}
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                filterType === "drinks"
+                  ? "bg-blue-500 text-white"
+                  : "hover:bg-muted"
+              }`}
+            >
+              🥤 Drinks
+            </button>
           </div>
 
           {/* Sort By */}
@@ -187,36 +148,32 @@ const MenuBrowsing = () => {
       </div>
 
       {/* Popular Items Section */}
-      <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-4">
+      {/* <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-4">
         <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
           <Star className="size-5 text-orange-500" fill="currentColor" />
           Top Rated Items
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {menuItems
-            .filter((item) => item.popular)
-            .map((item) => (
-              <div key={item.id} className="bg-white rounded px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{item.image}</span>
-                  <div className="flex-1">
-                    <p className="font-semibold text-sm">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      ${item.price}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Star
-                      className="size-3 text-yellow-500"
-                      fill="currentColor"
-                    />
-                    <span className="text-xs font-medium">{item.rating}</span>
-                  </div>
+          {MENU_ITEMS.filter((item) => item.popular).map((item) => (
+            <div key={item.id} className="bg-white rounded px-3 py-2">
+              <div className="flex items-center gap-2">
+                <img src={item.image} alt={item.name} className="object-cover rounded" />
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">${item.price}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Star
+                    className="size-3 text-yellow-500"
+                    fill="currentColor"
+                  />
+                  <span className="text-xs font-medium">{item.rating}</span>
                 </div>
               </div>
-            ))}
+            </div>
+          ))}
         </div>
-      </div>
+      </div> */}
 
       {/* Menu Items Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -231,7 +188,13 @@ const MenuBrowsing = () => {
               className="bg-card border border-border rounded-lg p-4 hover:shadow-lg transition-shadow"
             >
               <div className="flex items-start justify-between mb-3">
-                <div className="text-4xl">{item.image}</div>
+                <div className="rounded-md bg-muted p-2">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-96 h-56 object-cover rounded"
+                  />
+                </div>
                 <div className="flex flex-col gap-2">
                   {item.popular && (
                     <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded">
@@ -239,13 +202,9 @@ const MenuBrowsing = () => {
                     </span>
                   )}
                   <span
-                    className={`px-2 py-1 text-xs font-semibold rounded ${
-                      item.type === "veg"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
+                    className={`px-2 py-1 text-xs font-semibold rounded ${typeStyle[item.type]}`}
                   >
-                    {item.type === "veg" ? "🌱 VEG" : "🍖 NON-VEG"}
+                    {typeLabel[item.type]}
                   </span>
                 </div>
               </div>

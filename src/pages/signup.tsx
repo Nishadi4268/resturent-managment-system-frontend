@@ -6,7 +6,6 @@ import login from "../assets/images/login.png";
 type FormData = {
   fullName: string;
   email: string;
-  employeeId: string;
   password: string;
   confirmPassword: string;
   acceptTerms: boolean;
@@ -17,7 +16,6 @@ type FormErrors = Partial<Record<keyof FormData, string>>;
 const initialForm: FormData = {
   fullName: "",
   email: "",
-  employeeId: "",
   password: "",
   confirmPassword: "",
   acceptTerms: false
@@ -29,7 +27,6 @@ const Signup = () => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isStaffSignup, setIsStaffSignup] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState<string>("");
@@ -63,16 +60,6 @@ const Signup = () => {
       nextErrors.email = "Please enter a valid email address.";
     }
 
-    if (isStaffSignup && !form.employeeId.trim()) {
-      nextErrors.employeeId = "Employee ID is required for staff signup.";
-    } else if (isStaffSignup && form.employeeId.trim()) {
-      // Validate Employee ID format: ST-S-xxxx (where xxxx is 4 digits)
-      if (!/^ST-S-\d{4}$/.test(form.employeeId.trim())) {
-        nextErrors.employeeId =
-          "Employee ID must be in correct format.";
-      }
-    }
-
     if (!form.password) {
       nextErrors.password = "Password is required.";
     } else if (form.password.length < 8) {
@@ -103,11 +90,6 @@ const Signup = () => {
     if (Object.keys(nextErrors).length === 0) {
       setIsLoading(true);
       try {
-        // Use appropriate endpoint based on signup type
-        const endpoint = isStaffSignup
-          ? "http://localhost:5000/api/auth/staff-signup"
-          : "http://localhost:5000/api/auth/signup";
-
         const payload: Record<string, unknown> = {
           name: form.fullName,
           email: form.email,
@@ -115,12 +97,7 @@ const Signup = () => {
           confirmPassword: form.confirmPassword
         };
 
-        // Add employeeId for staff signup
-        if (isStaffSignup) {
-          payload.employeeId = form.employeeId;
-        }
-
-        const response = await fetch(endpoint, {
+        const response = await fetch("http://localhost:5000/api/auth/signup", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -174,30 +151,6 @@ const Signup = () => {
             <h2 className="text-2xl font-semibold">Create account</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Fill in your details to get started.
-            </p>
-
-            <p className="mt-2 text-sm text-muted-foreground">
-              Want to create a staff account?{" "}
-              <button
-                type="button"
-                className="font-medium text-primary underline"
-                onClick={() => {
-                  setIsStaffSignup((prev) => {
-                    const next = !prev;
-                    if (!next) {
-                      setForm((current) => ({ ...current, employeeId: "" }));
-                      setErrors((current) => {
-                        const nextErrors = { ...current };
-                        delete nextErrors.employeeId;
-                        return nextErrors;
-                      });
-                    }
-                    return next;
-                  });
-                }}
-              >
-                {isStaffSignup ? "Use regular signup" : "Staff signup"}
-              </button>
             </p>
 
             {isSubmitted ? (
@@ -271,38 +224,6 @@ const Signup = () => {
                   </p>
                 ) : null}
               </div>
-
-              {isStaffSignup ? (
-                <div>
-                  <label
-                    htmlFor="employeeId"
-                    className="mb-1.5 block text-sm font-medium"
-                  >
-                    Employee ID
-                  </label>
-                  <div className="relative">
-                    <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      id="employeeId"
-                      type="text"
-                      className={inputBaseClass}
-                      placeholder="Enter your employee ID"
-                      value={form.employeeId}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          employeeId: e.target.value.trimStart()
-                        }))
-                      }
-                    />
-                  </div>
-                  {errors.employeeId ? (
-                    <p className="mt-1 text-xs text-destructive">
-                      {errors.employeeId}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
 
               <div>
                 <label
